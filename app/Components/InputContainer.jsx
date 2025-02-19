@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { FileText, Upload, MessageSquare, Bot, Loader2, Sparkles, Book, Send, Minimize2, Maximize2, X, LayoutList } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,8 +18,9 @@ function InputContainer() {
   const [pdfText, setPdfText] = useState('');
   const [isUploadMinimized, setIsUploadMinimized] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const chatSessionRef = useRef(null);
 
-  async function askGemini(text, context) {
+  async function initializeChatSession() {
     const apikey = "AIzaSyD-vV69glRGdbKu6SV5OVopDzi6I1IYF9s";
     const genAi = new GoogleGenerativeAI(apikey);
     const model = genAi.getGenerativeModel({ model: "gemini-2.0-flash" });
@@ -31,7 +32,15 @@ function InputContainer() {
       maxOutputTokens: 8192,
     };
 
-    const chatSession = model.startChat({ generationConfig });
+    chatSessionRef.current = model.startChat({ generationConfig });
+    return chatSessionRef.current;
+  }
+
+  async function askGemini(text, context) {
+    if (!chatSessionRef.current) {
+      await initializeChatSession();
+    }
+
     const prompt = context ? 
       `Context from PDF: ${context}\n\nQuestion: ${text}` :
       `Please provide a clear and structured summary of the following text, including:
@@ -44,7 +53,7 @@ function InputContainer() {
       
       Please format the response with clear headings, bullet points, and proper markdown formatting for better readability.`;
     
-    const result = await chatSession.sendMessage(prompt);
+    const result = await chatSessionRef.current.sendMessage(prompt);
     return result.response.text();
   }
 
@@ -64,6 +73,7 @@ function InputContainer() {
     setChat([]);
     setPdfText('');
     setShowSummary(false);
+    chatSessionRef.current = null; // Reset chat session when new file is uploaded
   };
 
   const handleFile = async () => {
@@ -113,6 +123,7 @@ function InputContainer() {
     setPdfText('');
     setShowSummary(false);
     setIsUploadMinimized(false);
+    chatSessionRef.current = null; // Reset chat session when file is reset
   };
 
   return (
