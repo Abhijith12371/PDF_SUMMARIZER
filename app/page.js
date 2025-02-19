@@ -1,9 +1,10 @@
+// 'use-client'
 import React from 'react'
-
+import InputContainer from './Components/InputContainer'
 const page = () => {
   return (
     <div>
-      This is a Next Js Page
+      <InputContainer/>
     </div>
   )
 }
