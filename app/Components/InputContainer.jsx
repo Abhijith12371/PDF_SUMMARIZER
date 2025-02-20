@@ -73,7 +73,7 @@ function InputContainer() {
     setChat([]);
     setPdfText('');
     setShowSummary(false);
-    chatSessionRef.current = null; // Reset chat session when new file is uploaded
+    chatSessionRef.current = null;
   };
 
   const handleFile = async () => {
@@ -123,7 +123,7 @@ function InputContainer() {
     setPdfText('');
     setShowSummary(false);
     setIsUploadMinimized(false);
-    chatSessionRef.current = null; // Reset chat session when file is reset
+    chatSessionRef.current = null;
   };
 
   return (
