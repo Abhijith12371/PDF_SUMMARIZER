@@ -13,15 +13,222 @@ import {
   Maximize2,
   X,
   LayoutList,
-  FileImage
+  FileImage,
+  Download
 } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import * as pdfjsLib from "pdfjs-dist"
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { Document, Page, Text, View, StyleSheet, PDFDownloadLink, Font } from '@react-pdf/renderer'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs"
+pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs"
+
+// Register fonts
+Font.register({
+  family: 'Helvetica',
+  fonts: [
+    {
+      src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica.ttf'
+    },
+    {
+      src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica-Bold.ttf',
+      fontWeight: 'bold'
+    }
+  ]
+});
+
+// Create styles for PDF
+const styles = StyleSheet.create({
+  page: {
+    flexDirection: 'column',
+    backgroundColor: '#fff',
+    padding: 30,
+    fontFamily: 'Helvetica'
+  },
+  header: {
+    fontSize: 24,
+    marginBottom: 20,
+    color: '#0891b2',
+    fontFamily: 'Helvetica',
+    fontWeight: 'bold'
+  },
+  section: {
+    marginBottom: 20
+  },
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#0891b2',
+    fontFamily: 'Helvetica',
+    fontWeight: 'bold'
+  },
+  text: {
+    fontSize: 12,
+    lineHeight: 1.6,
+    marginBottom: 8,
+    color: '#1f2937',
+    fontFamily: 'Helvetica'
+  },
+  bulletPoint: {
+    flexDirection: 'row',
+    marginBottom: 4,
+    paddingLeft: 10
+  },
+  bullet: {
+    width: 10,
+    fontSize: 12,
+    marginRight: 5
+  },
+  bulletText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#1f2937'
+  },
+  chatMessage: {
+    marginBottom: 12,
+    padding: 8,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 4
+  },
+  messageRole: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginBottom: 4,
+    fontFamily: 'Helvetica'
+  }
+});
+
+// Helper function to parse markdown content
+const parseMarkdownContent = (content) => {
+  // Split content into lines
+  const lines = content.split('\n');
+  const parsedContent = [];
+
+  lines.forEach((line, index) => {
+    // Handle headers
+    if (line.startsWith('#')) {
+      const level = line.match(/^#+/)[0].length;
+      const text = line.replace(/^#+\s/, '');
+      parsedContent.push({
+        type: 'header',
+        level,
+        content: text
+      });
+    }
+    // Handle bullet points
+    else if (line.match(/^[-*]\s/)) {
+      const text = line.replace(/^[-*]\s/, '');
+      parsedContent.push({
+        type: 'bullet',
+        content: text
+      });
+    }
+    // Handle regular text
+    else if (line.trim()) {
+      parsedContent.push({
+        type: 'text',
+        content: line
+      });
+    }
+  });
+
+  return parsedContent;
+};
+
+// PDF Document Component
+const NotesDocument = ({ fileName, summary, chat }) => (
+  <Document>
+    <Page size="A4" style={styles.page}>
+      <Text style={styles.header}>PDF Analysis Notes: {fileName}</Text>
+      
+      {summary && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Document Summary</Text>
+          {parseMarkdownContent(summary).map((item, index) => {
+            if (item.type === 'header') {
+              return (
+                <Text
+                  key={index}
+                  style={[
+                    styles.text,
+                    {
+                      fontSize: item.level === 1 ? 16 : 14,
+                      fontWeight: 'bold',
+                      marginTop: 8,
+                      marginBottom: 4
+                    }
+                  ]}
+                >
+                  {item.content}
+                </Text>
+              );
+            } else if (item.type === 'bullet') {
+              return (
+                <View key={index} style={styles.bulletPoint}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={styles.bulletText}>{item.content}</Text>
+                </View>
+              );
+            } else {
+              return (
+                <Text key={index} style={styles.text}>
+                  {item.content}
+                </Text>
+              );
+            }
+          })}
+        </View>
+      )}
+      
+      {chat.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Q&A Discussion</Text>
+          {chat.map((message, index) => (
+            <View key={index} style={styles.chatMessage}>
+              <Text style={styles.messageRole}>
+                {message.role === 'user' ? 'Question:' : 'Answer:'}
+              </Text>
+              {parseMarkdownContent(message.content).map((item, itemIndex) => {
+                if (item.type === 'header') {
+                  return (
+                    <Text
+                      key={itemIndex}
+                      style={[
+                        styles.text,
+                        {
+                          fontSize: item.level === 1 ? 14 : 12,
+                          fontWeight: 'bold',
+                          marginTop: 6,
+                          marginBottom: 3
+                        }
+                      ]}
+                    >
+                      {item.content}
+                    </Text>
+                  );
+                } else if (item.type === 'bullet') {
+                  return (
+                    <View key={itemIndex} style={styles.bulletPoint}>
+                      <Text style={styles.bullet}>•</Text>
+                      <Text style={styles.bulletText}>{item.content}</Text>
+                    </View>
+                  );
+                } else {
+                  return (
+                    <Text key={itemIndex} style={styles.text}>
+                      {item.content}
+                    </Text>
+                  );
+                }
+              })}
+            </View>
+          ))}
+        </View>
+      )}
+    </Page>
+  </Document>
+);
 
 function App() {
   const [file, setFile] = useState(null)
@@ -35,6 +242,7 @@ function App() {
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [pdfPages, setPdfPages] = useState([])
   const [pdfDoc, setPdfDoc] = useState(null)
+  const [exportError, setExportError] = useState(null)
   const chatSessionRef = useRef(null)
   const canvasRefs = useRef({})
 
@@ -90,7 +298,7 @@ function App() {
     return result.response.text()
   }
 
-  const onFileChange = async e => {
+  const handleFileChange = async (e) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
 
@@ -98,9 +306,9 @@ function App() {
     const arrayBuffer = await selectedFile.arrayBuffer()
 
     try {
-      const loadedPdf = await pdfjsLib.getDocument({ data: arrayBuffer })
-        .promise
+      const loadedPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       setPdfDoc(loadedPdf)
+      handleFile()
     } catch (error) {
       console.error("Error loading PDF:", error)
     }
@@ -168,6 +376,7 @@ function App() {
     setPdfDoc(null)
     setPdfPages([])
     setShowPdfPreview(false)
+    setExportError(null)
     chatSessionRef.current = null
   }
 
@@ -207,12 +416,36 @@ function App() {
             </div>
             {file && (
               <div className="flex items-center space-x-2 sm:space-x-4">
+                {/* Export Button */}
+                <PDFDownloadLink
+                  document={
+                    <NotesDocument
+                      fileName={file.name}
+                      summary={summary}
+                      chat={chat}
+                    />
+                  }
+                  fileName={`notes-${file.name}.pdf`}
+                >
+                  {({ loading, error }) => {
+                    if (error && error !== exportError) {
+                      setExportError(error)
+                    }
+                    return (
+                      <button
+                        disabled={loading || !summary || error}
+                        className="p-2 rounded-lg text-cyan-400 hover:bg-cyan-500/10 transition-colors duration-300 disabled:opacity-50"
+                        title={error ? "Error generating PDF" : "Export Notes"}
+                      >
+                        <Download className="h-5 w-5" />
+                      </button>
+                    )
+                  }}
+                </PDFDownloadLink>
                 <button
                   onClick={() => setShowPdfPreview(!showPdfPreview)}
                   className="p-2 rounded-lg text-cyan-400 hover:bg-cyan-500/10 transition-colors duration-300"
-                  title={
-                    showPdfPreview ? "Hide PDF Preview" : "Show PDF Preview"
-                  }
+                  title={showPdfPreview ? "Hide PDF Preview" : "Show PDF Preview"}
                 >
                   <FileImage className="h-5 w-5" />
                 </button>
@@ -270,7 +503,7 @@ function App() {
                         type="file"
                         className="hidden"
                         accept="application/pdf"
-                        onChange={onFileChange}
+                        onChange={handleFileChange}
                       />
                     </label>
                   </div>
@@ -450,3 +683,4 @@ function App() {
 }
 
 export default App
+
